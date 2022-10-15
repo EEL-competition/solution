@@ -1,0 +1,140 @@
+Offset 57, length 8, Rule ID: COMMA_PARENTHESIS_WHITESPACE
+Message: Put a space after the comma.
+Suggestion: , because
+...ents would benefit from learning at home,because they wont have to change and get up ear...
+                                           ^^^^^^^^
+Offset 71, length 4, Rule ID: WONT_CONTRACTION
+Message: Please make sure you mean ‘wont’ (a habit), not “won't”/“won’t” (short for ‘will not’)?
+Suggestion: won't; won’t
+...efit from learning at home,because they wont have to change and get up early in the ...
+                                           ^^^^
+Offset 152, length 6, Rule ID: UPPERCASE_SENTENCE_START
+Message: This sentence does not start with an uppercase letter.
+Suggestion: Taking
+...he morning to shower and do there hair. taking only classes helps them because at ther...
+                                           ^^^^^^
+Offset 194, length 5, Rule ID: THERE_THEIR
+Message: Did you mean “their”?
+Suggestion: their
+...king only classes helps them because at there house they'll be pay more attention. th...
+                                           ^^^^^
+Offset 237, length 4, Rule ID: UPPERCASE_SENTENCE_START
+Message: This sentence does not start with an uppercase letter.
+Suggestion: They
+...re house they'll be pay more attention. they will be comfortable at home.  The harde...
+                                           ^^^^
+Offset 317, length 3, Rule ID: UPPERCASE_SENTENCE_START
+Message: This sentence does not start with an uppercase letter.
+Suggestion: You
+...ardest part of school is getting ready. you wake up go brush your teeth and go to y...
+                                           ^^^
+Offset 396, length 5, Rule ID: UPPERCASE_SENTENCE_START
+Message: This sentence does not start with an uppercase letter.
+Suggestion: After
+...to your closet and look at your cloths. after you think you picked a outfit u go look...
+                                           ^^^^^
+Offset 423, length 1, Rule ID: EN_A_VS_AN
+Message: Use “an” instead of ‘a’ if the following word starts with a vowel sound, e.g. ‘an article’, ‘an hour’.
+Suggestion: an
+...your cloths. after you think you picked a outfit u go look in the mirror and youl...
+                                           ^
+Offset 460, length 5, Rule ID: EN_CONTRACTION_SPELLING
+Message: Possible spelling mistake found.
+Suggestion: you'll
+...ed a outfit u go look in the mirror and youll either not like it or you look and see ...
+                                           ^^^^^
+Offset 542, length 4, Rule ID: UPPERCASE_SENTENCE_START
+Message: This sentence does not start with an uppercase letter.
+Suggestion: With
+...ee a stain. Then you'll have to change. with the online classes you can wear anythin...
+                                           ^^^^
+Offset 610, length 4, Rule ID: WONT_CONTRACTION
+Message: Please make sure you mean ‘wont’ (a habit), not “won't”/“won’t” (short for ‘will not’)?
+Suggestion: won't; won’t
+...can wear anything and stay home and you wont need to stress about what to wear.  mos...
+                                           ^^^^
+Offset 651, length 4, Rule ID: UPPERCASE_SENTENCE_START
+Message: This sentence does not start with an uppercase letter.
+Suggestion: Most
+...ont need to stress about what to wear.  most students usually take showers before sc...
+                                           ^^^^
+Offset 701, length 4, Rule ID: UPPERCASE_SENTENCE_START
+Message: This sentence does not start with an uppercase letter.
+Suggestion: They
+...nts usually take showers before school. they either take it before they sleep or whe...
+                                           ^^^^
+Offset 761, length 4, Rule ID: UPPERCASE_SENTENCE_START
+Message: This sentence does not start with an uppercase letter.
+Suggestion: Some
+...before they sleep or when they wake up. some students do both to smell good. that ca...
+                                           ^^^^
+Offset 798, length 4, Rule ID: UPPERCASE_SENTENCE_START
+Message: This sentence does not start with an uppercase letter.
+Suggestion: That
+...p. some students do both to smell good. that causes them do miss the bus and effects...
+                                           ^^^^
+Offset 846, length 5, Rule ID: THERE_THEIR
+Message: Did you mean “their”?
+Suggestion: their
+...ses them do miss the bus and effects on there lesson time cause they come late to sch...
+                                           ^^^^^
+Offset 864, length 5, Rule ID: CAUSE_BECAUSE
+Message: Did you mean “because”?
+Suggestion: because
+...he bus and effects on there lesson time cause they come late to school. when u have o...
+                                           ^^^^^
+Offset 896, length 4, Rule ID: UPPERCASE_SENTENCE_START
+Message: This sentence does not start with an uppercase letter.
+Suggestion: When
+...on time cause they come late to school. when u have online classes u wont need to mi...
+                                           ^^^^
+Offset 925, length 4, Rule ID: WONT_CONTRACTION
+Message: Please make sure you mean ‘wont’ (a habit), not “won't”/“won’t” (short for ‘will not’)?
+Suggestion: won't; won’t
+...to school. when u have online classes u wont need to miss lessons cause you can get ...
+                                           ^^^^
+Offset 951, length 5, Rule ID: CAUSE_BECAUSE
+Message: Did you mean “because”?
+Suggestion: because
+...ine classes u wont need to miss lessons cause you can get everything set up and go ta...
+                                           ^^^^^
+Offset 1046, length 4, Rule ID: UPPERCASE_SENTENCE_START
+Message: This sentence does not start with an uppercase letter.
+Suggestion: When
+...r and when u get out your ready to go.  when your home your comfortable and you pay ...
+                                           ^^^^
+Offset 1101, length 2, Rule ID: UPPERCASE_SENTENCE_START
+Message: This sentence does not start with an uppercase letter.
+Suggestion: It
+...your comfortable and you pay attention. it gives then an advantage to be smarter a...
+                                           ^^
+Offset 1188, length 6, Rule ID: UPPERCASE_SENTENCE_START
+Message: This sentence does not start with an uppercase letter.
+Suggestion: Public
+...en pass there classmates on class work. public schools are difficult even if you try. ...
+                                           ^^^^^^
+Offset 1234, length 4, Rule ID: UPPERCASE_SENTENCE_START
+Message: This sentence does not start with an uppercase letter.
+Suggestion: Some
+... schools are difficult even if you try. some teacher dont know how to teach it in th...
+                                           ^^^^
+Offset 1247, length 4, Rule ID: EN_CONTRACTION_SPELLING
+Message: Possible spelling mistake found.
+Suggestion: don't
+...difficult even if you try. some teacher dont know how to teach it in then way that s...
+                                           ^^^^
+Offset 1314, length 4, Rule ID: UPPERCASE_SENTENCE_START
+Message: This sentence does not start with an uppercase letter.
+Suggestion: That
+...n then way that students understand it. that causes students to fail and they may re...
+                                           ^^^^
+Offset 1342, length 4, Rule ID: COMMA_COMPOUND_SENTENCE
+Message: Use a comma before ‘and’ if it connects two independent clauses (unless they are closely connected and short).
+Suggestion: , and
+...erstand it. that causes students to fail and they may repeat the class.             ...
+                                           ^^^^
+Offset 1374, length 13, Rule ID: WHITESPACE_RULE
+Message: Possible typo: you repeated a whitespace
+Suggestion:  
+... to fail and they may repeat the class.              
+                                           ^^^^^^^^^^^^^
