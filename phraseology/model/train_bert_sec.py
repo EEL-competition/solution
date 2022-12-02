@@ -24,7 +24,7 @@ from animus.torch.callbacks import TorchCheckpointerCallback
 
 import wandb
 
-from transformers import BertModel, BertForNextSentencePrediction
+from transformers import BertModel, BertForSequenceClassification
 
 from phraseology.model.settings import LOGS_ROOT, UTCNOW
 from phraseology.model.dataset import load_dataset
@@ -82,7 +82,7 @@ class Experiment(IExperiment):
                 self.project_prefix = prefix.replace("-", "_")
         self.config["prefix"] = self.project_prefix
 
-        self.project_name = f"{self.mode}-bert-{self.problem}"
+        self.project_name = f"{self.mode}-bert_sec-{self.problem}"
         self.config["project_name"] = self.project_name
         self.logdir = f"{LOGS_ROOT}/{self.project_prefix}-{self.project_name}/"
         self.config["logdir"] = self.logdir
@@ -212,28 +212,20 @@ class Experiment(IExperiment):
         )
 
     def initialize_model(self):
-        # self.bert = BertForNextSentencePrediction.from_pretrained(
-        #     "bert-base-uncased",
-        #     num_labels=self.n_classes,
-        #     output_attentions=False,
-        #     output_hidden_states=False,
-        # )
-        self.bert = BertModel.from_pretrained("bert-base-uncased").to(self.device)
-        self.classifier = nn.Linear(
-            in_features=512 * 768, out_features=self.n_classes
-        ).to(self.device)
+        self.bert = BertForSequenceClassification.from_pretrained(
+            "bert-base-uncased",
+            # problem_type="multi_label_classification",
+            num_labels=self.n_classes,
+            output_attentions=False,
+            output_hidden_states=False,
+        )
 
         self.criterion = nn.CrossEntropyLoss()
 
-        # self.optimizer = optim.Adam(
-        #     self.bert.parameters(),
-        #     lr=1e-3,
-        # )
         self.optimizer = optim.Adam(
-            list(self.bert.parameters()) + list(self.classifier.parameters()),
+            self.bert.parameters(),
             lr=1e-3,
         )
-
 
         self.runpath = f"{self.logdir}/k_{self.k}/{self.trial:04d}/"
         self.config["runpath"] = self.runpath
@@ -291,13 +283,6 @@ class Experiment(IExperiment):
                 metric_key="loss",
                 minimize=True,
             ),
-            "checkpointer_clf": TorchCheckpointerCallback(
-                exp_attr="classifier",
-                logdir=self.config["runpath"],
-                dataset_key="valid",
-                metric_key="loss",
-                minimize=True,
-            ),
         }
 
         # set epochs
@@ -309,7 +294,6 @@ class Experiment(IExperiment):
         all_scores, all_targets = [], []
         total_loss = 0.0
         self.bert.train(self.is_train_dataset)
-        self.classifier.train(self.is_train_dataset)
 
         if self.problem == "classification":
             with torch.set_grad_enabled(self.is_train_dataset):
@@ -328,10 +312,7 @@ class Experiment(IExperiment):
                         # "labels": target.to(self.device),
                     }
 
-                    outputs = self.bert(**inputs)
-                    logits = self.classifier(
-                        outputs.last_hidden_state.reshape(self.bs, -1)
-                    )
+                    logits = self.bert(**inputs).logits
 
                     score = torch.softmax(logits, dim=-1)
 
@@ -402,9 +383,6 @@ class Experiment(IExperiment):
         logpath = f"{self.logdir}k_{self.k}/{self.trial:04d}/bert.best.pth"
         checkpoint = torch.load(logpath, map_location=lambda storage, loc: storage)
         self.bert.load_state_dict(checkpoint)
-        logpath = f"{self.logdir}k_{self.k}/{self.trial:04d}/classifier.best.pth"
-        checkpoint = torch.load(logpath, map_location=lambda storage, loc: storage)
-        self.classifier.load_state_dict(checkpoint)
 
         print("Run test dataset")
         self.run_dataset()

@@ -82,7 +82,7 @@ class Experiment(IExperiment):
                 self.project_prefix = prefix.replace("-", "_")
         self.config["prefix"] = self.project_prefix
 
-        self.project_name = f"{self.mode}-bert-{self.problem}"
+        self.project_name = f"{self.mode}-regbert-{self.problem}"
         self.config["project_name"] = self.project_name
         self.logdir = f"{LOGS_ROOT}/{self.project_prefix}-{self.project_name}/"
         self.config["logdir"] = self.logdir
@@ -225,15 +225,14 @@ class Experiment(IExperiment):
 
         self.criterion = nn.CrossEntropyLoss()
 
-        # self.optimizer = optim.Adam(
-        #     self.bert.parameters(),
-        #     lr=1e-3,
-        # )
         self.optimizer = optim.Adam(
             list(self.bert.parameters()) + list(self.classifier.parameters()),
             lr=1e-3,
         )
-
+        # self.optimizer = optim.Adam(
+        #     self.bert.parameters(),
+        #     lr=1e-3,
+        # )
 
         self.runpath = f"{self.logdir}/k_{self.k}/{self.trial:04d}/"
         self.config["runpath"] = self.runpath
