@@ -4,3 +4,5 @@ phraseology/notebooks/*
 phraseology/notebooks/*.ipynb
 
 wandb/
+
+*__pycache__*
