@@ -278,13 +278,20 @@ class Experiment(IExperiment):
         self.callbacks = {
             "early-stop": EarlyStoppingCallback(
                 minimize=True,
-                patience=5,
+                patience=10,
                 dataset_key="valid",
                 metric_key="loss",
                 min_delta=0.001,
             ),
-            "checkpointer": TorchCheckpointerCallback(
+            "checkpointer_bert": TorchCheckpointerCallback(
                 exp_attr="bert",
+                logdir=self.config["runpath"],
+                dataset_key="valid",
+                metric_key="loss",
+                minimize=True,
+            ),
+            "checkpointer_clf": TorchCheckpointerCallback(
+                exp_attr="classifier",
                 logdir=self.config["runpath"],
                 dataset_key="valid",
                 metric_key="loss",
@@ -355,13 +362,7 @@ class Experiment(IExperiment):
 
             if self.dataset_key.startswith("test"):
                 logpath = f"{self.logdir}k_{self.k}/{self.trial:04d}/confusion_matrix_data.npz"
-                np.savez(
-                    logpath,
-                    y_true=y_test,
-                    y_pred=y_pred,
-                    y_score=y_score
-                )
-
+                np.savez(logpath, y_true=y_test, y_pred=y_pred, y_score=y_score)
 
         if self.problem == "regression":
             pass
@@ -393,12 +394,16 @@ class Experiment(IExperiment):
             batch_size=int(self.config["batch_size"]),
             num_workers=0,
             shuffle=False,
+            drop_last=True,
         )
 
         # prepare to run test: load best model weights
-        logpath = f"{self.logdir}k_{self.k}/{self.trial:04d}/_model.best.pth"
+        logpath = f"{self.logdir}k_{self.k}/{self.trial:04d}/bert.best.pth"
         checkpoint = torch.load(logpath, map_location=lambda storage, loc: storage)
-        self._model.load_state_dict(checkpoint)
+        self.bert.load_state_dict(checkpoint)
+        logpath = f"{self.logdir}k_{self.k}/{self.trial:04d}/classifier.best.pth"
+        checkpoint = torch.load(logpath, map_location=lambda storage, loc: storage)
+        self.classifier.load_state_dict(checkpoint)
 
         print("Run test dataset")
         self.run_dataset()
@@ -414,7 +419,6 @@ class Experiment(IExperiment):
                 "test_accuracy": self.dataset_metrics["accuracy"],
                 "test_score": self.dataset_metrics["score"],
                 "test_loss": self.dataset_metrics["loss"],
-                "config_path": self.config["run_config_path"],
             }
 
             self.wandb_logger.log(results)
