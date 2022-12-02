@@ -26,3 +26,9 @@ PYTHONPATH=./ python phraseology/model/train.py --mode experiment --model mlp --
 ```
 PYTHONPATH=./ python phraseology/model/train_bert.py --mode experiment --problem classification --prefix test --max-epochs 100
 ```
+```
+PYTHONPATH=./ python phraseology/model/train_bert_sec.py --mode experiment --problem classification --prefix test --max-epochs 100
+```
+```
+PYTHONPATH=./ python phraseology/model/train_regbert.py --mode experiment --problem regression --prefix test --max-epochs 100
+```
