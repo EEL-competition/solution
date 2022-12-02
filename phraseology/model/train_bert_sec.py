@@ -218,7 +218,7 @@ class Experiment(IExperiment):
             num_labels=self.n_classes,
             output_attentions=False,
             output_hidden_states=False,
-        )
+        ).to(self.device)
 
         self.criterion = nn.CrossEntropyLoss()
 

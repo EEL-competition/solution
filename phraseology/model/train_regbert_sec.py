@@ -217,7 +217,7 @@ class Experiment(IExperiment):
             num_labels=1,
             output_attentions=False,
             output_hidden_states=False,
-        )
+        ).to(self.device)
 
         self.criterion = nn.MSELoss()
 
