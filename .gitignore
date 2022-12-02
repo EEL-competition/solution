@@ -1,3 +1,6 @@
 phraseology/logs
+phraseology/trained_models
+phraseology/notebooks/*
+phraseology/notebooks/*.ipynb
 
 wandb/
