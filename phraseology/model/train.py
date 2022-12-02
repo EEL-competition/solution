@@ -299,6 +299,10 @@ class Experiment(IExperiment):
                 "loss": total_loss,
             }
 
+            if self.dataset_key.startswith("test"):
+                logpath = f"{self.logdir}k_{self.k}/{self.trial:04d}/confusion_matrix_data.npz"
+                np.savez(logpath, y_true=y_test, y_pred=y_pred, y_score=y_score)
+
         if self.problem == "regression":
             pass
 

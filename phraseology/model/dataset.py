@@ -2,7 +2,7 @@
 """Script loading dataset"""
 import numpy as np
 
-from phraseology.model.settings import DATA_ROOT  # , PREPROCESSED_ROOT
+from phraseology.model.settings import DATA_ROOT, PREPROCESSED_ROOT
 
 
 def load_dataset(dataset: str, problem_type: str):
@@ -24,6 +24,14 @@ def load_dataset(dataset: str, problem_type: str):
         data2 = load_formal_idioms()
         data3 = load_phrasal_verbs()
         data = np.concatenate((data1, data2, data3), axis=1)
+    elif dataset == "bert":
+        path = PREPROCESSED_ROOT.joinpath("tokenized.npz")
+        np_data = np.load(path, allow_pickle=True)
+        data = {
+            "input_ids": np_data["input_ids"],
+            "token_type_ids": np_data["token_type_ids"],
+            "attention_mask": np_data["attention_mask"],
+        }
     else:
         raise NotImplementedError()
 
