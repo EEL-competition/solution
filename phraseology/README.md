@@ -19,6 +19,7 @@ pip install tqdm apto animus simpletransformers path
 
 # Examples
 ```
+PYTHONPATH=./ python phraseology/model/train.py --mode tune --model mlp --ds all --problem classification --max-epochs 100
 PYTHONPATH=./ python phraseology/model/train.py --mode experiment --model mlp --ds all --problem classification --max-epochs 100
 ```
 
