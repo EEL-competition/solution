@@ -82,7 +82,7 @@ class Experiment(IExperiment):
                 self.project_prefix = prefix.replace("-", "_")
         self.config["prefix"] = self.project_prefix
 
-        self.project_name = f"{self.mode}-bert_sec-{self.problem}"
+        self.project_name = f"{self.mode}-regbert_sec-{self.problem}"
         self.config["project_name"] = self.project_name
         self.logdir = f"{LOGS_ROOT}/{self.project_prefix}-{self.project_name}/"
         self.config["logdir"] = self.logdir

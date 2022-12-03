@@ -32,3 +32,6 @@ PYTHONPATH=./ python phraseology/model/train_bert_sec.py --mode experiment --pro
 ```
 PYTHONPATH=./ python phraseology/model/train_regbert.py --mode experiment --problem regression --prefix test --max-epochs 100
 ```
+```
+PYTHONPATH=./ python phraseology/model/train_regbert_sec.py --mode experiment --problem regression --prefix test --max-epochs 100
+```

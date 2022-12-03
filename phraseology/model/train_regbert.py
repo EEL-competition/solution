@@ -153,24 +153,24 @@ class Experiment(IExperiment):
             print("number of classes: ", self.n_classes)
 
         # train-val/test split
-        skf = StratifiedKFold(n_splits=self.n_splits, shuffle=True, random_state=42)
-
-        train_index, test_index = list(skf.split(input_ids, labels))[self.k]
-
-        input_ids_train, input_ids_test = (
-            input_ids[train_index],
-            input_ids[test_index],
+        (
+            input_ids_train,
+            input_ids_test,
+            token_type_ids_train,
+            token_type_ids_test,
+            attention_mask_train,
+            attention_mask_test,
+            y_train,
+            y_test,
+        ) = train_test_split(
+            input_ids,
+            token_type_ids,
+            attention_mask,
+            labels,
+            test_size=self.data_shape[0] // self.n_splits,
+            random_state=42 + self.k,
+            stratify=labels,
         )
-        token_type_ids_train, token_type_ids_test = (
-            token_type_ids[train_index],
-            token_type_ids[test_index],
-        )
-        attention_mask_train, attention_mask_test = (
-            attention_mask[train_index],
-            attention_mask[test_index],
-        )
-
-        y_train, y_test = labels[train_index], labels[test_index]
 
         # train/val split
         (
@@ -196,19 +196,19 @@ class Experiment(IExperiment):
             torch.tensor(input_ids_train, dtype=torch.int64),
             torch.tensor(token_type_ids_train, dtype=torch.int64),
             torch.tensor(attention_mask_train, dtype=torch.int64),
-            torch.tensor(y_train, dtype=torch.int64),
+            torch.tensor(y_train, dtype=torch.float32),
         )
         self._valid_ds = TensorDataset(
             torch.tensor(input_ids_val, dtype=torch.int64),
             torch.tensor(token_type_ids_val, dtype=torch.int64),
             torch.tensor(attention_mask_val, dtype=torch.int64),
-            torch.tensor(y_val, dtype=torch.int64),
+            torch.tensor(y_val, dtype=torch.float32),
         )
         self._test_ds = TensorDataset(
             torch.tensor(input_ids_test, dtype=torch.int64),
             torch.tensor(token_type_ids_test, dtype=torch.int64),
             torch.tensor(attention_mask_test, dtype=torch.int64),
-            torch.tensor(y_test, dtype=torch.int64),
+            torch.tensor(y_test, dtype=torch.float32),
         )
 
     def initialize_model(self):
@@ -219,20 +219,20 @@ class Experiment(IExperiment):
         #     output_hidden_states=False,
         # )
         self.bert = BertModel.from_pretrained("bert-base-uncased").to(self.device)
-        self.classifier = nn.Linear(
-            in_features=512 * 768, out_features=self.n_classes
+        self.regressor = nn.Sequential(
+            nn.Linear(768, 128),
+            nn.ReLU(),
+            nn.Linear(128, 128),
+            nn.Tanh(),
+            nn.Linear(128, 1),
         ).to(self.device)
 
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = nn.MSELoss()
 
         self.optimizer = optim.Adam(
-            list(self.bert.parameters()) + list(self.classifier.parameters()),
+            list(self.bert.parameters()) + list(self.regressor.parameters()),
             lr=1e-3,
         )
-        # self.optimizer = optim.Adam(
-        #     self.bert.parameters(),
-        #     lr=1e-3,
-        # )
 
         self.runpath = f"{self.logdir}/k_{self.k}/{self.trial:04d}/"
         self.config["runpath"] = self.runpath
@@ -290,8 +290,8 @@ class Experiment(IExperiment):
                 metric_key="loss",
                 minimize=True,
             ),
-            "checkpointer_clf": TorchCheckpointerCallback(
-                exp_attr="classifier",
+            "checkpointer_reg": TorchCheckpointerCallback(
+                exp_attr="regressor",
                 logdir=self.config["runpath"],
                 dataset_key="valid",
                 metric_key="loss",
@@ -308,9 +308,9 @@ class Experiment(IExperiment):
         all_scores, all_targets = [], []
         total_loss = 0.0
         self.bert.train(self.is_train_dataset)
-        self.classifier.train(self.is_train_dataset)
+        self.regressor.train(self.is_train_dataset)
 
-        if self.problem == "classification":
+        if self.problem == "regression":
             with torch.set_grad_enabled(self.is_train_dataset):
                 for self.dataset_batch_step, (
                     input_ids,
@@ -328,13 +328,9 @@ class Experiment(IExperiment):
                     }
 
                     outputs = self.bert(**inputs)
-                    logits = self.classifier(
-                        outputs.last_hidden_state.reshape(self.bs, -1)
-                    )
+                    score = self.regressor(outputs.last_hidden_state[:, 0, :])
 
-                    score = torch.softmax(logits, dim=-1)
-
-                    loss = self.criterion(logits, target)
+                    loss = self.criterion(score, target)
                     total_loss += loss.item()
 
                     all_scores.append(score.cpu().detach().numpy())
@@ -348,40 +344,29 @@ class Experiment(IExperiment):
 
             y_test = np.hstack(all_targets)
             y_score = np.vstack(all_scores)
-            y_pred = np.argmax(y_score, axis=-1).astype(np.int32)
-
-            report = get_classification_report(
-                y_true=y_test, y_pred=y_pred, y_score=y_score, beta=0.5
-            )
 
             self.dataset_metrics = {
-                "accuracy": report["precision"].loc["accuracy"],
-                "score": report["auc"].loc["weighted"],
                 "loss": total_loss,
             }
 
             if self.dataset_key.startswith("test"):
                 logpath = f"{self.logdir}k_{self.k}/{self.trial:04d}/confusion_matrix_data.npz"
-                np.savez(logpath, y_true=y_test, y_pred=y_pred, y_score=y_score)
+                np.savez(logpath, y_true=y_test, y_score=y_score)
 
-        if self.problem == "regression":
+        if self.problem == "classification":
             pass
 
     def on_epoch_end(self, exp: "IExperiment") -> None:
         super().on_epoch_end(self)
-        if self.problem == "classification":
+        if self.problem == "regression":
             self.wandb_logger.log(
                 {
-                    "train_accuracy": self.epoch_metrics["train"]["accuracy"],
-                    "train_score": self.epoch_metrics["train"]["score"],
                     "train_loss": self.epoch_metrics["train"]["loss"],
-                    "valid_accuracy": self.epoch_metrics["valid"]["accuracy"],
-                    "valid_score": self.epoch_metrics["valid"]["score"],
                     "valid_loss": self.epoch_metrics["valid"]["loss"],
                 },
             )
 
-        if self.problem == "regression":
+        if self.problem == "classification":
             pass
 
     def on_experiment_end(self, exp: "IExperiment") -> None:
@@ -401,23 +386,19 @@ class Experiment(IExperiment):
         logpath = f"{self.logdir}k_{self.k}/{self.trial:04d}/bert.best.pth"
         checkpoint = torch.load(logpath, map_location=lambda storage, loc: storage)
         self.bert.load_state_dict(checkpoint)
-        logpath = f"{self.logdir}k_{self.k}/{self.trial:04d}/classifier.best.pth"
+        logpath = f"{self.logdir}k_{self.k}/{self.trial:04d}/regressor.best.pth"
         checkpoint = torch.load(logpath, map_location=lambda storage, loc: storage)
-        self.classifier.load_state_dict(checkpoint)
+        self.regressor.load_state_dict(checkpoint)
 
         print("Run test dataset")
         self.run_dataset()
 
         # save results
-        if self.problem == "classification":
+        if self.problem == "regression":
             print("Test results:")
-            print("Accuracy ", self.dataset_metrics["accuracy"])
-            print("AUC ", self.dataset_metrics["score"])
             print("Loss ", self.dataset_metrics["loss"])
 
             results = {
-                "test_accuracy": self.dataset_metrics["accuracy"],
-                "test_score": self.dataset_metrics["score"],
                 "test_loss": self.dataset_metrics["loss"],
             }
 
@@ -427,7 +408,7 @@ class Experiment(IExperiment):
             with open(f"{self.logdir}/runs.csv", "a") as f:
                 df.to_csv(f, header=f.tell() == 0, index=False)
 
-        if self.problem == "regression":
+        if self.problem == "classification":
             pass
 
         self.wandb_logger.finish()
