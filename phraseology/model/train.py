@@ -24,6 +24,8 @@ from apto.utils.report import get_classification_report
 from animus import EarlyStoppingCallback, IExperiment
 from animus.torch.callbacks import TorchCheckpointerCallback
 
+from apto.utils.misc import boolean_flag
+
 import wandb
 
 from phraseology.model.settings import LOGS_ROOT, UTCNOW
@@ -38,6 +40,7 @@ class Experiment(IExperiment):
         problem_type: str,
         model: str,
         dataset: str,
+        balanced: bool,
         prefix: str,
         n_splits: int,
         n_trials: int,
@@ -54,7 +57,7 @@ class Experiment(IExperiment):
         if mode == "resume":
             (
                 mode,
-                problem,
+                problem_type,
                 model,
                 dataset,
                 n_splits,
@@ -71,6 +74,7 @@ class Experiment(IExperiment):
         self.model = self.config["model"] = model
         # main dataset name (used for training and testing)
         self._dataset = self.config["dataset"] = dataset
+        self.balanced = self.config["balanced"] = balanced
 
         # num of splits for StratifiedKFold
         self.n_splits = self.config["n_splits"] = n_splits
@@ -90,7 +94,11 @@ class Experiment(IExperiment):
                 self.project_prefix = prefix.replace("-", "_")
         self.config["prefix"] = self.project_prefix
 
-        self.project_name = f"{self.mode}-{self.model}-{self._dataset}"
+        if self.balanced:
+            self.project_name = f"{self.mode}-{self.model}-balanced_{self._dataset}"
+        else:
+            self.project_name = f"{self.mode}-{self.model}-{self._dataset}"
+
         self.config["project_name"] = self.project_name
         self.logdir = f"{LOGS_ROOT}/{self.project_prefix}-{self.project_name}/"
         self.config["logdir"] = self.logdir
@@ -166,6 +174,26 @@ class Experiment(IExperiment):
             random_state=42 + self.trial,
             stratify=y_train,
         )
+
+        if self.balanced:
+            print(f"X_train shape before balancing: {X_train.shape}")
+            print(f"y_train shape before balancing: {y_train.shape}")
+
+            filter_labels = y_train.copy()
+            if self.problem == "regression":
+                filter_labels = (filter_labels * 2 - 2).astype(int)
+
+            filter_array = []
+
+            label_count = np.zeros(np.unique(filter_labels).shape[0])
+            for i, label in enumerate(filter_labels):
+                if label_count[label] < 100:
+                    label_count[label] += 1
+                    filter_array.append(i)
+
+            X_train, y_train = X_train[filter_array], y_train[filter_array]
+            print(f"X_train shape after balancing: {X_train.shape}")
+            print(f"y_train shape after balancing: {y_train.shape}")
 
         self._train_ds = TensorDataset(
             torch.tensor(X_train, dtype=torch.float32),
@@ -449,6 +477,8 @@ if __name__ == "__main__":
         help="Name of the dataset to use for training",
     )
 
+    boolean_flag(parser, "balanced", default=False)
+
     parser.add_argument(
         "--prefix",
         type=str,
@@ -483,6 +513,7 @@ if __name__ == "__main__":
         problem_type=args.problem,
         model=args.model,
         dataset=args.ds,
+        balanced=args.balanced,
         prefix=args.prefix,
         n_splits=args.num_splits,
         n_trials=args.num_trials,

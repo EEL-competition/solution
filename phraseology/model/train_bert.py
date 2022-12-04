@@ -22,6 +22,8 @@ from apto.utils.report import get_classification_report
 from animus import EarlyStoppingCallback, IExperiment
 from animus.torch.callbacks import TorchCheckpointerCallback
 
+from apto.utils.misc import boolean_flag
+
 import wandb
 
 from transformers import BertModel, BertForNextSentencePrediction
@@ -36,6 +38,7 @@ class Experiment(IExperiment):
         mode: str,
         path: str,
         problem_type: str,
+        balanced: bool,
         prefix: str,
         n_splits: int,
         n_trials: int,
@@ -63,6 +66,7 @@ class Experiment(IExperiment):
         self.mode = self.config["mode"] = mode
         # classification or regression
         self.problem = self.config["problem"] = problem_type
+        self.balanced = self.config["balanced"] = balanced
 
         # num of splits for StratifiedKFold
         self.n_splits = self.config["n_splits"] = n_splits
@@ -191,6 +195,30 @@ class Experiment(IExperiment):
             random_state=42 + self.trial,
             stratify=y_train,
         )
+        if self.balanced:
+            print(f"X_train shape before balancing: {input_ids_train.shape}")
+            print(f"y_train shape before balancing: {y_train.shape}")
+
+            filter_labels = y_train.copy()
+            if self.problem == "regression":
+                filter_labels = (filter_labels * 2 - 2).astype(int)
+
+            filter_array = []
+
+            label_count = np.zeros(np.unique(filter_labels).shape[0])
+            for i, label in enumerate(filter_labels):
+                if label_count[label] < 100:
+                    label_count[label] += 1
+                    filter_array.append(i)
+
+            input_ids_train, token_type_ids_train, attention_mask_train, y_train = (
+                input_ids_train[filter_array],
+                token_type_ids_train[filter_array],
+                attention_mask_train[filter_array],
+                y_train[filter_array],
+            )
+            print(f"X_train shape after balancing: {input_ids_train.shape}")
+            print(f"y_train shape after balancing: {y_train.shape}")
 
         self._train_ds = TensorDataset(
             torch.tensor(input_ids_train, dtype=torch.int64),
@@ -487,6 +515,7 @@ if __name__ == "__main__":
         help="'regression' for regression problem,\
             'classification' for classification approach",
     )
+    boolean_flag(parser, "balanced", default=False)
 
     parser.add_argument(
         "--prefix",
@@ -520,6 +549,7 @@ if __name__ == "__main__":
         mode=args.mode,
         path=args.path,
         problem_type=args.problem,
+        balanced=args.balanced,
         prefix=args.prefix,
         n_splits=args.num_splits,
         n_trials=args.num_trials,
