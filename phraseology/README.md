@@ -14,7 +14,7 @@ conda install pytorch torchvision torchaudio pytorch-cuda=11.6 -c pytorch -c nvi
 ```
 conda install scikit-learn pandas
 
-pip install tqdm apto animus simpletransformers path
+pip install tqdm apto animus simpletransformers path torchsampler
 ```
 
 # Organization
@@ -27,7 +27,7 @@ pip install tqdm apto animus simpletransformers path
 
 - `preprocessed_data` contains modified corpi used in extraction scripts, extracted phraseology vectors
 
-- `cropped_data` contains the same as `preprocessed_data` but idioms and phrasal verbs that do not appear in the training data is filtered out
+- `cropped_data` contains the same as `preprocessed_data` but idioms and phrasal verbs that do not appear in the training data are filtered out
 
 - `notebooks` contains data preparation scripts, scripts for analysing results and polyssifier script
 
