@@ -4,5 +4,7 @@ phraseology/notebooks/*
 phraseology/notebooks/*.ipynb
 
 wandb/
+git-story_media
+.ipynb_checkpoints
 
 *__pycache__*
