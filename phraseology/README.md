@@ -14,7 +14,7 @@ conda install pytorch torchvision torchaudio pytorch-cuda=11.6 -c pytorch -c nvi
 ```
 conda install scikit-learn pandas
 
-pip install tqdm apto animus simpletransformers path
+pip install tqdm apto animus simpletransformers path torchsampler
 ```
 
 # Organization
