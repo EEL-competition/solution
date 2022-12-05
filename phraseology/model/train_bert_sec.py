@@ -1,11 +1,9 @@
 # pylint: disable=W0201,W0223,C0103,C0115,C0116,R0902,E1101,R0914,E0401, C0415
 """Script for tuning different models on different datasets"""
 import os
-import csv
 import sys
 import argparse
 import json
-import re
 import shutil
 
 import pandas as pd
@@ -28,6 +26,8 @@ from apto.utils.misc import boolean_flag
 
 import wandb
 
+from transformers import BertModel, BertForSequenceClassification
+
 from phraseology.model.settings import LOGS_ROOT, UTCNOW
 from phraseology.model.dataset import load_dataset
 
@@ -38,8 +38,6 @@ class Experiment(IExperiment):
         mode: str,
         path: str,
         problem_type: str,
-        model: str,
-        dataset: str,
         balanced: bool,
         prefix: str,
         n_splits: int,
@@ -58,8 +56,6 @@ class Experiment(IExperiment):
             (
                 mode,
                 problem_type,
-                model,
-                dataset,
                 n_splits,
                 n_trials,
                 max_epochs,
@@ -70,10 +66,6 @@ class Experiment(IExperiment):
         self.mode = self.config["mode"] = mode
         # classification or regression
         self.problem = self.config["problem"] = problem_type
-        # model name
-        self.model = self.config["model"] = model
-        # main dataset name (used for training and testing)
-        self._dataset = self.config["dataset"] = dataset
         self.balanced = self.config["balanced"] = balanced
 
         # num of splits for StratifiedKFold
@@ -94,11 +86,7 @@ class Experiment(IExperiment):
                 self.project_prefix = prefix.replace("-", "_")
         self.config["prefix"] = self.project_prefix
 
-        if self.balanced:
-            self.project_name = f"{self.mode}-{self.model}-balanced_{self._dataset}"
-        else:
-            self.project_name = f"{self.mode}-{self.model}-{self._dataset}"
-
+        self.project_name = f"{self.mode}-bert_sec-{self.problem}"
         self.config["project_name"] = self.project_name
         self.logdir = f"{LOGS_ROOT}/{self.project_prefix}-{self.project_name}/"
         self.config["logdir"] = self.logdir
@@ -109,6 +97,14 @@ class Experiment(IExperiment):
         logfile = f"{self.logdir}/config.json"
         with open(logfile, "w") as fp:
             json.dump(self.config, fp)
+
+        if torch.cuda.is_available():
+            dev = "cuda:0"
+        else:
+            dev = "cpu"
+
+        print(f"Used device: {dev}")
+        self.device = torch.device(dev)
 
     def acquire_cont_params(self, path, n_trials):
         """
@@ -138,8 +134,6 @@ class Experiment(IExperiment):
         return (
             config["mode"],
             config["problem"],
-            config["model"],
-            config["dataset"],
             config["n_splits"],
             config["n_trials"],
             config["max_epochs"],
@@ -148,10 +142,15 @@ class Experiment(IExperiment):
 
     def initialize_data(self):
         # load dataset
-        # your dataset should have shape [n_features; phraseology space]
 
-        features, labels = load_dataset(self._dataset, self.problem)
-        self.data_shape = features.shape  # [n_features; phraseology space]
+        self.bs = self.config["batch_size"] = 4
+
+        features, labels = load_dataset("bert", self.problem)
+        input_ids = features["input_ids"]
+        token_type_ids = features["token_type_ids"]
+        attention_mask = features["attention_mask"]
+
+        self.data_shape = input_ids.shape
         print("data shape: ", self.data_shape)
         if self.problem == "classification":
             self.n_classes = len([*set(labels)])
@@ -159,24 +158,45 @@ class Experiment(IExperiment):
 
         # train-val/test split
         skf = StratifiedKFold(n_splits=self.n_splits, shuffle=True, random_state=42)
-        skf.get_n_splits(features, labels)
 
-        train_index, test_index = list(skf.split(features, labels))[self.k]
+        train_index, test_index = list(skf.split(input_ids, labels))[self.k]
 
-        X_train, X_test = features[train_index], features[test_index]
+        input_ids_train, input_ids_test = (
+            input_ids[train_index],
+            input_ids[test_index],
+        )
+        token_type_ids_train, token_type_ids_test = (
+            token_type_ids[train_index],
+            token_type_ids[test_index],
+        )
+        attention_mask_train, attention_mask_test = (
+            attention_mask[train_index],
+            attention_mask[test_index],
+        )
+
         y_train, y_test = labels[train_index], labels[test_index]
 
         # train/val split
-        X_train, X_val, y_train, y_val = train_test_split(
-            X_train,
+        (
+            input_ids_train,
+            input_ids_val,
+            token_type_ids_train,
+            token_type_ids_val,
+            attention_mask_train,
+            attention_mask_val,
+            y_train,
+            y_val,
+        ) = train_test_split(
+            input_ids_train,
+            token_type_ids_train,
+            attention_mask_train,
             y_train,
             test_size=self.data_shape[0] // self.n_splits,
             random_state=42 + self.trial,
             stratify=y_train,
         )
-
         if self.balanced:
-            print(f"X_train shape before balancing: {X_train.shape}")
+            print(f"X_train shape before balancing: {input_ids_train.shape}")
             print(f"y_train shape before balancing: {y_train.shape}")
 
             filter_labels = y_train.copy()
@@ -191,47 +211,55 @@ class Experiment(IExperiment):
                     label_count[label] += 1
                     filter_array.append(i)
 
-            X_train, y_train = X_train[filter_array], y_train[filter_array]
-            print(f"X_train shape after balancing: {X_train.shape}")
+            input_ids_train, token_type_ids_train, attention_mask_train, y_train = (
+                input_ids_train[filter_array],
+                token_type_ids_train[filter_array],
+                attention_mask_train[filter_array],
+                y_train[filter_array],
+            )
+            print(f"X_train shape after balancing: {input_ids_train.shape}")
             print(f"y_train shape after balancing: {y_train.shape}")
-
+            
         self._train_ds = TensorDataset(
-            torch.tensor(X_train, dtype=torch.float32),
+            torch.tensor(input_ids_train, dtype=torch.int64),
+            torch.tensor(token_type_ids_train, dtype=torch.int64),
+            torch.tensor(attention_mask_train, dtype=torch.int64),
             torch.tensor(y_train, dtype=torch.int64),
         )
         self._valid_ds = TensorDataset(
-            torch.tensor(X_val, dtype=torch.float32),
+            torch.tensor(input_ids_val, dtype=torch.int64),
+            torch.tensor(token_type_ids_val, dtype=torch.int64),
+            torch.tensor(attention_mask_val, dtype=torch.int64),
             torch.tensor(y_val, dtype=torch.int64),
         )
         self._test_ds = TensorDataset(
-            torch.tensor(X_test, dtype=torch.float32),
+            torch.tensor(input_ids_test, dtype=torch.int64),
+            torch.tensor(token_type_ids_test, dtype=torch.int64),
+            torch.tensor(attention_mask_test, dtype=torch.int64),
             torch.tensor(y_test, dtype=torch.int64),
         )
 
     def initialize_model(self):
-        # deferred import - there is a cyclic import
-        from phraseology.model.model import (
-            get_config,
-            get_model,
-            get_criterion,
-            get_optimizer,
+        self.bert = BertForSequenceClassification.from_pretrained(
+            "bert-base-uncased",
+            # problem_type="multi_label_classification",
+            num_labels=self.n_classes,
+            output_attentions=False,
+            output_hidden_states=False,
+        ).to(self.device)
+
+        self.criterion = nn.CrossEntropyLoss()
+
+        self.optimizer = optim.Adam(
+            self.bert.parameters(),
+            lr=1e-3,
         )
 
-        config, self.model_config = get_config(self)
-        self.config.update(config)
-        self._model = get_model(self.model, self.model_config)
-        self.criterion = get_criterion(self.model, self.problem)
-        self.optimizer = get_optimizer(self)
+        self.runpath = f"{self.logdir}/k_{self.k}/{self.trial:04d}/"
+        self.config["runpath"] = self.runpath
 
         # create run directory
-        os.makedirs(config["runpath"], exist_ok=True)
-
-        # update saved config
-        with open(f"{self.logdir}/config.json", "w") as fp:
-            json.dump(self.config, fp)
-        # save model params in the run's directory
-        with open(self.config["run_config_path"], "w") as fp:
-            json.dump(self.model_config, fp)
+        os.makedirs(self.config["runpath"], exist_ok=True)
 
     def on_experiment_start(self, exp: "IExperiment"):
         super().on_experiment_start(exp)
@@ -239,7 +267,7 @@ class Experiment(IExperiment):
         # init wandb logger
         self.wandb_logger: wandb.run = wandb.init(
             project=f"{self.project_prefix}-{self.project_name}",
-            name=f"{self.utcnow}-k_{self.k}-trial_{self.trial}",
+            name=f"k_{self.k}-trial_{self.trial:04d}",
             save_code=True,
         )
 
@@ -256,12 +284,14 @@ class Experiment(IExperiment):
                 batch_size=int(self.config["batch_size"]),
                 num_workers=0,
                 shuffle=True,
+                drop_last=True,
             ),
             "valid": DataLoader(
                 self._valid_ds,
                 batch_size=int(self.config["batch_size"]),
                 num_workers=0,
                 shuffle=False,
+                drop_last=True,
             ),
         }
 
@@ -269,13 +299,13 @@ class Experiment(IExperiment):
         self.callbacks = {
             "early-stop": EarlyStoppingCallback(
                 minimize=True,
-                patience=30,
+                patience=10,
                 dataset_key="valid",
                 metric_key="loss",
                 min_delta=0.001,
             ),
-            "checkpointer": TorchCheckpointerCallback(
-                exp_attr="_model",
+            "checkpointer_bert": TorchCheckpointerCallback(
+                exp_attr="bert",
                 logdir=self.config["runpath"],
                 dataset_key="valid",
                 metric_key="loss",
@@ -287,22 +317,35 @@ class Experiment(IExperiment):
         self.num_epochs = self.max_epochs
 
         self.wandb_logger.config.update(self.config)
-        self.wandb_logger.config.update(self.model_config)
 
     def run_dataset(self) -> None:
         all_scores, all_targets = [], []
         total_loss = 0.0
-        self._model.train(self.is_train_dataset)
+        self.bert.train(self.is_train_dataset)
 
         if self.problem == "classification":
             with torch.set_grad_enabled(self.is_train_dataset):
-                for self.dataset_batch_step, (data, target) in enumerate(
-                    tqdm(self.dataset)
-                ):
+                for self.dataset_batch_step, (
+                    input_ids,
+                    token_type_ids,
+                    attention_mask,
+                    target,
+                ) in enumerate(tqdm(self.dataset)):
                     self.optimizer.zero_grad()
-                    logits = self._model(data)
-                    loss = self.criterion(logits, target)
+
+                    target = target.to(self.device)
+                    inputs = {
+                        "input_ids": input_ids.to(self.device),
+                        "attention_mask": attention_mask.to(self.device),
+                        # "labels": target.to(self.device),
+                    }
+
+                    logits = self.bert(**inputs).logits
+
                     score = torch.softmax(logits, dim=-1)
+
+                    loss = self.criterion(logits, target)
+                    total_loss += loss.item()
 
                     all_scores.append(score.cpu().detach().numpy())
                     all_targets.append(target.cpu().detach().numpy())
@@ -361,12 +404,13 @@ class Experiment(IExperiment):
             batch_size=int(self.config["batch_size"]),
             num_workers=0,
             shuffle=False,
+            drop_last=True,
         )
 
         # prepare to run test: load best model weights
-        logpath = f"{self.logdir}k_{self.k}/{self.trial:04d}/_model.best.pth"
+        logpath = f"{self.logdir}k_{self.k}/{self.trial:04d}/bert.best.pth"
         checkpoint = torch.load(logpath, map_location=lambda storage, loc: storage)
-        self._model.load_state_dict(checkpoint)
+        self.bert.load_state_dict(checkpoint)
 
         print("Run test dataset")
         self.run_dataset()
@@ -382,7 +426,6 @@ class Experiment(IExperiment):
                 "test_accuracy": self.dataset_metrics["accuracy"],
                 "test_score": self.dataset_metrics["score"],
                 "test_loss": self.dataset_metrics["loss"],
-                "config_path": self.config["run_config_path"],
             }
 
             self.wandb_logger.log(results)
@@ -453,30 +496,6 @@ if __name__ == "__main__":
         help="'regression' for regression problem,\
             'classification' for classification approach",
     )
-    parser.add_argument(
-        "--model",
-        type=str,
-        choices=[
-            "mlp",
-            "wide_mlp",
-        ],
-        required=not for_resume,
-        help="Name of the model to run",
-    )
-    parser.add_argument(
-        "--ds",
-        type=str,
-        choices=[
-            "all",
-            "phrasal_verbs",
-            "idioms",
-            "formal_idioms",
-            "static_idioms",
-        ],
-        required=not for_resume,
-        help="Name of the dataset to use for training",
-    )
-
     boolean_flag(parser, "balanced", default=False)
 
     parser.add_argument(
@@ -511,8 +530,6 @@ if __name__ == "__main__":
         mode=args.mode,
         path=args.path,
         problem_type=args.problem,
-        model=args.model,
-        dataset=args.ds,
         balanced=args.balanced,
         prefix=args.prefix,
         n_splits=args.num_splits,

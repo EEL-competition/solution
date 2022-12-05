@@ -35,6 +35,7 @@ def load_dataset(dataset: str, problem_type: str):
     else:
         raise NotImplementedError()
 
+    # labels analysis: [  10.   11.  350.  772. 1153.  929.  553.  108.   25.]
     if problem_type == "classification":
         labels = load_labels()
     elif problem_type == "regression":
